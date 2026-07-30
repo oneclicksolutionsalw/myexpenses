@@ -90,7 +90,6 @@
 
   <!-- ENTRY VIEW -->
   <main id="view-entry" class="view active">
-    <!-- FORM WRAPPER FOR DIRECT ENTER KEY SAVING -->
     <form id="entry-form" onsubmit="event.preventDefault(); saveExpense();">
       
       <div class="input-group" onclick="triggerDatePicker()">
@@ -191,6 +190,19 @@
 
   <!-- SETTINGS VIEW -->
   <main id="view-settings" class="view">
+    
+    <!-- NEW: Bulk CSV / Excel Upload Section -->
+    <div class="card-block" style="border:2px dashed var(--primary); background:#FFF0F3;">
+      <div class="section-label" style="color:var(--primary)">📥 Bulk Upload Expenses (CSV / Excel)</div>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:10px;">
+        Upload a `.csv` file with headers: <b>Date, Amount, Category, SubCategory, Note, User</b>
+      </p>
+      <input type="file" id="csv-file-input" accept=".csv" style="display:none;" onchange="handleCSVUpload(event)">
+      <button type="button" onclick="document.getElementById('csv-file-input').click()" style="width:100%; background:var(--primary); color:white; border:none; padding:12px; border-radius:12px; font-weight:800; cursor:pointer;">
+        📁 Select CSV File to Upload
+      </button>
+    </div>
+
     <div class="card-block">
       <div class="section-label">Manage Quick Shortcuts</div>
       <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px; margin-bottom:12px;">
@@ -198,7 +210,7 @@
           <input type="text" id="new-chip-label" placeholder="Label (e.g. 🚗 Carpool)" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
           <input type="number" id="new-chip-amount" placeholder="Amount" style="width:90px; padding:8px; border:2px solid var(--border); border-radius:10px;">
         </div>
-        <button onclick="addQuickShortcut()" style="background:var(--primary); color:white; border:none; padding:8px; border-radius:10px; font-weight:700;">Add Shortcut</button>
+        <button type="button" onclick="addQuickShortcut()" style="background:var(--primary); color:white; border:none; padding:8px; border-radius:10px; font-weight:700;">Add Shortcut</button>
       </div>
       <div id="settings-chip-list"></div>
     </div>
@@ -208,7 +220,7 @@
       <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px;">
         <input type="text" id="new-cat-icon" placeholder="Emoji" style="width:60px; padding:8px; border:2px solid var(--border); border-radius:10px; text-align:center;">
         <input type="text" id="new-cat-name" placeholder="Category Name" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
-        <button onclick="addCustomCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+        <button type="button" onclick="addCustomCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
       </div>
       <div id="settings-cat-list"></div>
     </div>
@@ -224,7 +236,7 @@
 
       <div style="display:flex; gap:8px; margin-bottom:12px;">
         <input type="text" id="new-subcat-name" placeholder="Sub-category (e.g. Carpool)" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
-        <button onclick="addSubCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+        <button type="button" onclick="addSubCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
       </div>
 
       <div id="settings-subcat-list"></div>
@@ -234,7 +246,7 @@
       <div class="section-label">Manage Family Members</div>
       <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px;">
         <input type="text" id="new-member-name" placeholder="Name" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
-        <button onclick="addFamilyMember()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+        <button type="button" onclick="addFamilyMember()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
       </div>
       <div id="settings-member-list"></div>
     </div>
@@ -243,7 +255,7 @@
       <div class="section-label">Monthly Target Budget (₹)</div>
       <div style="display:flex; gap:8px; margin-top:8px;">
         <input type="number" id="monthly-budget-input" placeholder="e.g. 30000" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
-        <button onclick="saveMonthlyBudget()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Save</button>
+        <button type="button" onclick="saveMonthlyBudget()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Save</button>
       </div>
     </div>
 
@@ -315,14 +327,12 @@
       renderSettingsLists();
       updateBudgetBar();
 
-      // Keyboard Listener for On-screen Keypad bindings
       document.addEventListener("keydown", (e) => {
         if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
         if ((e.key >= '0' && e.key <= '9') || e.key === '.') pressKey(e.key);
         if (e.key === 'Backspace') pressKey('DEL');
       });
 
-      // Realtime Cloud Listener
       expensesRef.on("value", (snapshot) => {
         const data = snapshot.val();
         expenses = [];
@@ -336,6 +346,63 @@
         renderAnalytics();
       });
     });
+
+    // CSV Bulk Upload Function
+    function handleCSVUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        if (lines.length <= 1) return alert("CSV file is empty!");
+
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').toLowerCase());
+        
+        let dateIdx = headers.findIndex(h => h.includes('date'));
+        let amtIdx = headers.findIndex(h => h.includes('amount') || h.includes('price') || h.includes('cost'));
+        let catIdx = headers.findIndex(h => h.includes('category') && !h.includes('sub'));
+        let subcatIdx = headers.findIndex(h => h.includes('sub'));
+        let noteIdx = headers.findIndex(h => h.includes('note') || h.includes('desc') || h.includes('title'));
+        let userIdx = headers.findIndex(h => h.includes('user') || h.includes('person') || h.includes('member') || h.includes('logged'));
+
+        if (amtIdx === -1) return alert("Could not find an 'Amount' column in CSV!");
+
+        let count = 0;
+        for (let i = 1; i < lines.length; i++) {
+          if (!lines[i].trim()) continue;
+          
+          const row = lines[i].split(',').map(cell => cell.trim().replace(/^"|"$/g, ''));
+          const rawAmt = parseFloat(row[amtIdx]?.replace(/[^0-9.]/g, ''));
+          if (isNaN(rawAmt) || rawAmt <= 0) continue;
+
+          let rawDate = row[dateIdx] || new Date().toISOString().slice(0, 10);
+          if (rawDate.includes('/')) {
+            const parts = rawDate.split('/');
+            if (parts[0].length === 4) rawDate = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+            else if (parts[2].length === 4) rawDate = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+          }
+
+          const payload = {
+            amount: rawAmt,
+            category: row[catIdx] || "Other",
+            subcat: row[subcatIdx] || "",
+            note: row[noteIdx] || "",
+            user: row[userIdx] || members[0] || "Self",
+            date: rawDate,
+            timestamp: Date.now() + i
+          };
+
+          expensesRef.push(payload);
+          count++;
+        }
+
+        alert(`Successfully imported ${count} expenses into cloud! 🎉`);
+        event.target.value = "";
+      };
+      reader.readAsText(file);
+    }
 
     function triggerDatePicker() {
       const dateInput = document.getElementById("entry-date");
