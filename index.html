@@ -90,66 +90,69 @@
 
   <!-- ENTRY VIEW -->
   <main id="view-entry" class="view active">
-    
-    <div class="input-group" onclick="triggerDatePicker()">
-      <span style="font-size:1.1rem">📅</span>
-      <input type="date" id="entry-date">
-    </div>
-
-    <div class="amount-card">
-      <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; color:var(--text-muted);">
-        <span>Monthly Family Budget</span>
-        <span id="budget-text">₹0 / ₹0</span>
+    <!-- FORM WRAPPER FOR DIRECT ENTER KEY SAVING -->
+    <form id="entry-form" onsubmit="event.preventDefault(); saveExpense();">
+      
+      <div class="input-group" onclick="triggerDatePicker()">
+        <span style="font-size:1.1rem">📅</span>
+        <input type="date" id="entry-date">
       </div>
-      <div class="budget-bar-bg">
-        <div class="budget-bar-fill" id="budget-fill"></div>
+
+      <div class="amount-card">
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; color:var(--text-muted);">
+          <span>Monthly Family Budget</span>
+          <span id="budget-text">₹0 / ₹0</span>
+        </div>
+        <div class="budget-bar-bg">
+          <div class="budget-bar-fill" id="budget-fill"></div>
+        </div>
       </div>
-    </div>
 
-    <div class="amount-card">
-      <div class="section-label">Enter Amount (Type or Tap)</div>
-      <button class="mic-btn" id="mic-btn" onclick="startVoiceInput()" title="Speak in Hindi/English">🎙️</button>
-      <div class="amount-display">₹<span id="amount-val">0</span></div>
-    </div>
+      <div class="amount-card">
+        <div class="section-label">Enter Amount</div>
+        <button type="button" class="mic-btn" id="mic-btn" onclick="startVoiceInput()" title="Speak in Hindi/English">🎙️</button>
+        <div class="amount-display">₹<span id="amount-val">0</span></div>
+      </div>
 
-    <div class="section-label">Quick Log Shortcuts</div>
-    <div class="chips-wrapper" id="chips-container"></div>
+      <div class="section-label">Quick Log Shortcuts</div>
+      <div class="chips-wrapper" id="chips-container"></div>
 
-    <div class="keypad">
-      <button class="key-btn" onclick="pressKey('1')">1</button>
-      <button class="key-btn" onclick="pressKey('2')">2</button>
-      <button class="key-btn" onclick="pressKey('3')">3</button>
-      <button class="key-btn" onclick="pressKey('4')">4</button>
-      <button class="key-btn" onclick="pressKey('5')">5</button>
-      <button class="key-btn" onclick="pressKey('6')">6</button>
-      <button class="key-btn" onclick="pressKey('7')">7</button>
-      <button class="key-btn" onclick="pressKey('8')">8</button>
-      <button class="key-btn" onclick="pressKey('9')">9</button>
-      <button class="key-btn" onclick="pressKey('.')">.</button>
-      <button class="key-btn" onclick="pressKey('0')">0</button>
-      <button class="key-btn" onclick="pressKey('DEL')">⌫</button>
-    </div>
+      <div class="keypad">
+        <button type="button" class="key-btn" onclick="pressKey('1')">1</button>
+        <button type="button" class="key-btn" onclick="pressKey('2')">2</button>
+        <button type="button" class="key-btn" onclick="pressKey('3')">3</button>
+        <button type="button" class="key-btn" onclick="pressKey('4')">4</button>
+        <button type="button" class="key-btn" onclick="pressKey('5')">5</button>
+        <button type="button" class="key-btn" onclick="pressKey('6')">6</button>
+        <button type="button" class="key-btn" onclick="pressKey('7')">7</button>
+        <button type="button" class="key-btn" onclick="pressKey('8')">8</button>
+        <button type="button" class="key-btn" onclick="pressKey('9')">9</button>
+        <button type="button" class="key-btn" onclick="pressKey('.')">.</button>
+        <button type="button" class="key-btn" onclick="pressKey('0')">0</button>
+        <button type="button" class="key-btn" onclick="pressKey('DEL')">⌫</button>
+      </div>
 
-    <div class="section-label">Main Category</div>
-    <div class="cat-grid" id="category-grid"></div>
+      <div class="section-label">Main Category</div>
+      <div class="cat-grid" id="category-grid"></div>
 
-    <div class="input-group">
-      <span style="font-size:1.1rem">📂</span>
-      <select id="entry-subcat"><option value="">Select Sub-Category (Optional)</option></select>
-    </div>
+      <div class="input-group">
+        <span style="font-size:1.1rem">📂</span>
+        <select id="entry-subcat"><option value="">Select Sub-Category (Optional)</option></select>
+      </div>
 
-    <div class="input-group">
-      <span style="font-size:1.1rem">📝</span>
-      <input type="text" id="entry-note" placeholder="Note (e.g. coffee, carpool)..." oninput="handleAutoMatch(this.value)">
-    </div>
+      <div class="input-group">
+        <span style="font-size:1.1rem">📝</span>
+        <input type="text" id="entry-note" placeholder="Note (e.g. coffee, carpool)..." oninput="handleAutoMatch(this.value)">
+      </div>
 
-    <div class="input-group">
-      <span style="font-size:1.1rem">👤 Logged By</span>
-      <select id="entry-user"></select>
-    </div>
+      <div class="input-group">
+        <span style="font-size:1.1rem">👤 Logged By</span>
+        <select id="entry-user"></select>
+      </div>
 
-    <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense 🪙 (Press Enter)</button>
+      <button type="submit" class="save-btn" id="save-btn">Save Expense 🪙 (Press Enter)</button>
 
+    </form>
   </main>
 
   <!-- ANALYTICS VIEW -->
@@ -312,21 +315,9 @@
       renderSettingsLists();
       updateBudgetBar();
 
-      // Keyboard Listener (Pressing Enter Saves Expense)
+      // Keyboard Listener for On-screen Keypad bindings
       document.addEventListener("keydown", (e) => {
-        // If user presses Enter anywhere on Add screen (or inside input fields)
-        if (e.key === 'Enter') {
-          // If actively typing inside Settings view, don't trigger expense save
-          const activeView = document.querySelector('.view.active').id;
-          if (activeView === 'view-entry') {
-            e.preventDefault();
-            saveExpense();
-            return;
-          }
-        }
-
-        // On-screen keypad keyboard bindings
-        if (document.activeElement.tagName === 'INPUT') return;
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT') return;
         if ((e.key >= '0' && e.key <= '9') || e.key === '.') pressKey(e.key);
         if (e.key === 'Backspace') pressKey('DEL');
       });
@@ -453,7 +444,7 @@
     
     function renderShortcuts() {
       document.getElementById("chips-container").innerHTML = shortcuts.map(s => `
-        <button class="chip-btn" onclick="quickLog(${s.amount}, '${s.category}', '${s.subcat || ''}', '${s.note || ''}')">
+        <button type="button" class="chip-btn" onclick="quickLog(${s.amount}, '${s.category}', '${s.subcat || ''}', '${s.note || ''}')">
           ${s.label} (₹${s.amount})
         </button>
       `).join('');
@@ -527,7 +518,7 @@
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
             <div style="font-weight:800; color:var(--primary)">₹${e.amount}</div>
-            <button class="action-btn" onclick="deleteExpense('${e.firebaseKey}')">🗑️</button>
+            <button type="button" class="action-btn" onclick="deleteExpense('${e.firebaseKey}')">🗑️</button>
           </div>
         </div>
       `).join('');
@@ -583,21 +574,21 @@
       document.getElementById("settings-chip-list").innerHTML = shortcuts.map((s, index) => `
         <div class="tag-item">
           <span>${s.label} (₹${s.amount})</span>
-          <button onclick="deleteShortcut(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+          <button type="button" onclick="deleteShortcut(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
         </div>
       `).join('');
 
       document.getElementById("settings-cat-list").innerHTML = categories.map((c, index) => `
         <div class="tag-item">
           <span>${c.icon} ${c.label}</span>
-          <button onclick="deleteCategory(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+          <button type="button" onclick="deleteCategory(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
         </div>
       `).join('');
 
       document.getElementById("settings-member-list").innerHTML = members.map((m, index) => `
         <div class="tag-item">
           <span>👤 ${m}</span>
-          <button onclick="deleteMember(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+          <button type="button" onclick="deleteMember(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
         </div>
       `).join('');
 
@@ -615,7 +606,7 @@
         listContainer.innerHTML = catObj.subcats.map((sub, index) => `
           <div class="tag-item">
             <span>📂 ${sub}</span>
-            <button onclick="deleteSubCategory('${catObj.id}', ${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+            <button type="button" onclick="deleteSubCategory('${catObj.id}', ${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
           </div>
         `).join('');
       } else {
