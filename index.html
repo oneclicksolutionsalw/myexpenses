@@ -12,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 
   <style>
     :root {
@@ -209,6 +210,24 @@
       <div id="settings-cat-list"></div>
     </div>
 
+    <!-- Manage Sub-Categories Manager -->
+    <div class="card-block">
+      <div class="section-label">Manage Sub-Categories</div>
+      <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">Select main category to add/remove sub-categories:</p>
+      
+      <div class="input-group" style="margin-bottom:10px;">
+        <span>📂</span>
+        <select id="subcat-parent-select" onchange="renderSettingsSubCatList()"></select>
+      </div>
+
+      <div style="display:flex; gap:8px; margin-bottom:12px;">
+        <input type="text" id="new-subcat-name" placeholder="Sub-category (e.g. Carpool)" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
+        <button onclick="addSubCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+      </div>
+
+      <div id="settings-subcat-list"></div>
+    </div>
+
     <div class="card-block">
       <div class="section-label">Manage Family Members</div>
       <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px;">
@@ -224,6 +243,13 @@
         <input type="number" id="monthly-budget-input" placeholder="e.g. 30000" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
         <button onclick="saveMonthlyBudget()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Save</button>
       </div>
+    </div>
+
+    <div class="card-block">
+      <div class="section-label">Data Backup</div>
+      <button onclick="exportToCSV()" style="width:100%; background:#10B981; color:white; border:none; padding:12px; border-radius:12px; font-weight:700; cursor:pointer; margin-top:6px;">
+        📊 Export Expenses to Excel / CSV
+      </button>
     </div>
   </main>
 
@@ -247,6 +273,7 @@
 
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
+    firebase.auth().signInAnonymously().catch((err) => console.error("Auth error:", err));
     const db = firebase.database();
     const expensesRef = db.ref("expenses");
 
@@ -262,26 +289,41 @@
 
     let shortcuts = JSON.parse(localStorage.getItem("piggy_shortcuts") || JSON.stringify([
       { label: "🚗 Carpool Alwar", amount: 380, category: "Travel", subcat: "Carpool", note: "Alwar Travel" },
-      { label: "🥛 Milk", amount: 50, category: "Food", subcat: "Groceries", note: "Daily Milk" }
+      { label: "🥛 Milk", amount: 50, category: "Food", subcat: "Groceries", note: "Daily Milk" },
+      { label: "☕ Tea", amount: 20, category: "Food", subcat: "Snacks", note: "Tea Break" }
     ]));
 
     let categories = JSON.parse(localStorage.getItem("piggy_categories") || JSON.stringify([
-      { id: "Food", label: "Food", icon: "🍔", subcats: ["Groceries", "Restaurant", "Snacks", "Milk"], keywords: ["lunch", "dinner", "pizza", "milk", "tea", "food"] },
-      { id: "Travel", label: "Travel", icon: "🚗", subcats: ["Carpool", "Petrol", "Cab", "Auto", "Train"], keywords: ["cab", "uber", "petrol", "auto", "train", "carpool", "alwar", "travel"] },
-      { id: "Shopping", label: "Shopping", icon: "🛍️", subcats: ["Clothes", "Household"], keywords: ["clothes", "shoes", "amazon"] },
-      { id: "Bills", label: "Bills", icon: "🏠", subcats: ["Rent", "Electricity", "Wifi"], keywords: ["wifi", "recharge", "rent", "electricity"] }
+      { id: "Food", label: "Food", icon: "🍔", subcats: ["Groceries", "Restaurant", "Snacks", "Milk"], keywords: ["coffee", "lunch", "dinner", "pizza", "milk", "tea", "food"] },
+      { id: "Travel", label: "Travel", icon: "🚗", subcats: ["Carpool", "Petrol", "Cab/Uber", "Auto", "Train"], keywords: ["cab", "uber", "petrol", "auto", "train", "carpool", "alwar", "travel"] },
+      { id: "Shopping", label: "Shopping", icon: "🛍️", subcats: ["Clothes", "Household", "Personal Care"], keywords: ["clothes", "shoes", "amazon", "shopping"] },
+      { id: "Bills", label: "Bills", icon: "🏠", subcats: ["Rent", "Electricity", "Wifi/Recharge", "Maid"], keywords: ["wifi", "recharge", "rent", "electricity", "bill"] },
+      { id: "Fun", label: "Fun", icon: "🎬", subcats: ["Movies", "Outing", "Subscriptions"], keywords: ["movie", "game", "party"] },
+      { id: "Health", label: "Health", icon: "🩺", subcats: ["Medicines", "Doctor", "Pharmacy"], keywords: ["medicine", "doctor"] },
+      { id: "Other", label: "Other", icon: "📦", subcats: ["Miscellaneous"], keywords: [] }
     ]));
 
     document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("entry-date").valueAsDate = new Date();
+      document.getElementById("monthly-budget-input").value = monthlyBudget;
       if (categories.length > 0) selectedCat = categories[0].id;
 
       renderCategoryGrid();
+      renderSubCategories();
       renderShortcuts();
       renderMembersSelect();
       renderSettingsLists();
+      updateBudgetBar();
 
-      // Realtime Cloud listener
+      // Keyboard listener
+      document.addEventListener("keydown", (e) => {
+        if (document.activeElement.tagName === 'INPUT') return;
+        if ((e.key >= '0' && e.key <= '9') || e.key === '.') pressKey(e.key);
+        if (e.key === 'Backspace') pressKey('DEL');
+        if (e.key === 'Enter') saveExpense();
+      });
+
+      // Realtime Cloud Listener
       expensesRef.on("value", (snapshot) => {
         const data = snapshot.val();
         expenses = [];
@@ -295,6 +337,44 @@
         renderAnalytics();
       });
     });
+
+    function triggerDatePicker() {
+      const dateInput = document.getElementById("entry-date");
+      if (dateInput.showPicker) dateInput.showPicker();
+      else dateInput.focus();
+    }
+
+    function pressKey(k) {
+      if (k === 'DEL') amountStr = amountStr.length > 1 ? amountStr.slice(0, -1) : "0";
+      else if (k === '.') { if (!amountStr.includes('.')) amountStr += '.'; }
+      else amountStr = amountStr === "0" ? k : amountStr + k;
+      document.getElementById("amount-val").innerText = amountStr;
+    }
+
+    function startVoiceInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return alert("Voice recognition not supported in this browser.");
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-IN';
+      const micBtn = document.getElementById("mic-btn");
+      
+      recognition.onstart = () => micBtn.classList.add("listening");
+      recognition.onend = () => micBtn.classList.remove("listening");
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        const numbers = transcript.match(/\d+/g);
+        if (numbers && numbers.length > 0) {
+          amountStr = numbers[0];
+          document.getElementById("amount-val").innerText = amountStr;
+        }
+        document.getElementById("entry-note").value = transcript;
+        handleAutoMatch(transcript);
+      };
+
+      recognition.start();
+    }
 
     function saveExpense() {
       const val = parseFloat(amountStr);
@@ -330,13 +410,6 @@
       }
     }
 
-    function pressKey(k) {
-      if (k === 'DEL') amountStr = amountStr.length > 1 ? amountStr.slice(0, -1) : "0";
-      else if (k === '.') { if (!amountStr.includes('.')) amountStr += '.'; }
-      else amountStr = amountStr === "0" ? k : amountStr + k;
-      document.getElementById("amount-val").innerText = amountStr;
-    }
-
     function renderCategoryGrid() {
       document.getElementById("category-grid").innerHTML = categories.map(c => `
         <div class="cat-btn ${c.id === selectedCat ? 'selected' : ''}" onclick="selectCategory('${c.id}')">
@@ -349,26 +422,52 @@
     function selectCategory(id) { selectedCat = id; renderCategoryGrid(); renderSubCategories(); }
 
     function renderSubCategories() {
-      const c = categories.find(cat => cat.id === selectedCat);
-      document.getElementById("entry-subcat").innerHTML = (c && c.subcats) ? 
-        `<option value="">Select Sub-Category</option>` + c.subcats.map(s => `<option value="${s}">${s}</option>`).join('') : `<option value="">General</option>`;
+      const catObj = categories.find(c => c.id === selectedCat);
+      const select = document.getElementById("entry-subcat");
+      if (catObj && catObj.subcats && catObj.subcats.length > 0) {
+        select.innerHTML = `<option value="">Select Sub-Category (Optional)</option>` +
+          catObj.subcats.map(s => `<option value="${s}">${s}</option>`).join('');
+      } else {
+        select.innerHTML = `<option value="">General</option>`;
+      }
+    }
+
+    function handleAutoMatch(text) {
+      const lower = text.toLowerCase();
+      for (let c of categories) {
+        if (c.keywords && c.keywords.some(k => lower.includes(k))) {
+          selectCategory(c.id); break;
+        }
+      }
     }
 
     function renderMembersSelect() { document.getElementById("entry-user").innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join(''); }
-    function renderShortcuts() { document.getElementById("chips-container").innerHTML = shortcuts.map(s => `<button class="chip-btn" onclick="quickLog(${s.amount}, '${s.category}', '${s.subcat||''}', '${s.note||''}')">${s.label} (₹${s.amount})</button>`).join(''); }
     
+    function renderShortcuts() {
+      document.getElementById("chips-container").innerHTML = shortcuts.map(s => `
+        <button class="chip-btn" onclick="quickLog(${s.amount}, '${s.category}', '${s.subcat || ''}', '${s.note || ''}')">
+          ${s.label} (₹${s.amount})
+        </button>
+      `).join('');
+    }
+
     function quickLog(amt, cat, sub, note) {
       amountStr = amt.toString();
       document.getElementById("amount-val").innerText = amountStr;
       document.getElementById("entry-note").value = note;
       selectCategory(cat);
+      if (sub) document.getElementById("entry-subcat").value = sub;
     }
 
     function updateBudgetBar() {
       const now = new Date();
       const spent = expenses.filter(e => new Date(e.date).getMonth() === now.getMonth()).reduce((s, e) => s + e.amount, 0);
       const pct = Math.min(100, Math.round((spent / monthlyBudget) * 100)) || 0;
-      document.getElementById("budget-fill").style.width = `${pct}%`;
+      const fill = document.getElementById("budget-fill");
+      fill.style.width = `${pct}%`;
+      if (pct > 90) fill.style.backgroundColor = "#EF4444";
+      else if (pct > 75) fill.style.backgroundColor = "#F59E0B";
+      else fill.style.backgroundColor = "#10B981";
       document.getElementById("budget-text").innerText = `₹${spent.toLocaleString('en-IN')} / ₹${monthlyBudget.toLocaleString('en-IN')} (${pct}%)`;
     }
 
@@ -376,16 +475,37 @@
       currentPeriod = p;
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
+      const customBox = document.getElementById("custom-date-box");
+      if (p === 'custom') customBox.classList.add("active");
+      else customBox.classList.remove("active");
       renderAnalytics();
+    }
+
+    function populateAnalyticsFilterDropdowns() {
+      document.getElementById("filter-category").innerHTML = `<option value="ALL">All Categories</option>` +
+        categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+
+      document.getElementById("filter-user").innerHTML = `<option value="ALL">All Persons</option>` +
+        members.map(m => `<option value="${m}">${m}</option>`).join('');
     }
 
     function renderAnalytics() {
       const now = new Date();
+      const selectedCatFilter = document.getElementById("filter-category").value;
+      const selectedUserFilter = document.getElementById("filter-user").value;
+
       const filtered = expenses.filter(e => {
         const d = new Date(e.date);
-        if (currentPeriod === 'day') return d.toDateString() === now.toDateString();
-        if (currentPeriod === 'month') return d.getMonth() === now.getMonth();
-        return true;
+        let dateMatch = true;
+        if (currentPeriod === 'day') dateMatch = d.toDateString() === now.toDateString();
+        else if (currentPeriod === 'week') dateMatch = (now - d) / (1000 * 60 * 60 * 24) <= 7;
+        else if (currentPeriod === 'month') dateMatch = d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+        else if (currentPeriod === 'year') dateMatch = d.getFullYear() === now.getFullYear();
+
+        const catMatch = selectedCatFilter === "ALL" || e.category === selectedCatFilter;
+        const userMatch = selectedUserFilter === "ALL" || e.user === selectedUserFilter;
+
+        return dateMatch && catMatch && userMatch;
       });
 
       const total = filtered.reduce((sum, e) => sum + e.amount, 0);
@@ -394,7 +514,7 @@
       document.getElementById("history-list").innerHTML = filtered.map(e => `
         <div class="tx-item">
           <div>
-            <div style="font-weight:700">${e.category} ${e.subcat ? '['+e.subcat+']' : ''} • ${e.note||''}</div>
+            <div style="font-weight:700">${e.category} ${e.subcat ? '['+e.subcat+']' : ''} ${e.note ? '• ' + e.note : ''}</div>
             <div style="font-size:0.75rem; color:var(--text-muted);">${e.date} (${e.user})</div>
           </div>
           <div style="display:flex; align-items:center; gap:10px;">
@@ -403,6 +523,188 @@
           </div>
         </div>
       `).join('');
+
+      const totalsByCat = {};
+      filtered.forEach(e => totalsByCat[e.category] = (totalsByCat[e.category] || 0) + e.amount);
+      const ctx = document.getElementById('donutChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(totalsByCat),
+          datasets: [{ data: Object.values(totalsByCat), backgroundColor: ['#FF5A79', '#FFC837', '#4ADE80', '#60A5FA', '#A78BFA', '#F472B6'] }]
+        }
+      });
+    }
+
+    function shareWhatsApp() {
+      const periodTotal = document.getElementById("period-total").innerText;
+      let breakdown = "";
+      const totalsByCat = {};
+      expenses.forEach(e => totalsByCat[e.category] = (totalsByCat[e.category] || 0) + e.amount);
+      for (let k in totalsByCat) breakdown += `• ${k}: ₹${totalsByCat[k]}\n`;
+
+      const text = `📊 *Piggy Jar Expense Summary (${currentPeriod.toUpperCase()})*\n*Total Spent:* ${periodTotal}\n\n*Category Breakdown:*\n${breakdown}\nSent from Piggy Jar App 🐷`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
+    }
+
+    function exportToCSV() {
+      if (expenses.length === 0) return alert("No expenses to export!");
+      let csv = "ID,Date,Amount,Category,SubCategory,Note,User\n";
+      expenses.forEach(e => {
+        csv += `"${e.firebaseKey}","${e.date}","${e.amount}","${e.category}","${e.subcat || ''}","${e.note || ''}","${e.user}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `PiggyJar_Expenses_${new Date().toISOString().slice(0,10)}.csv`;
+      a.click();
+    }
+
+    function saveMonthlyBudget() {
+      const val = parseFloat(document.getElementById("monthly-budget-input").value);
+      if (val > 0) {
+        monthlyBudget = val;
+        localStorage.setItem("piggy_budget", val.toString());
+        updateBudgetBar();
+        alert("Target budget updated!");
+      }
+    }
+
+    // Settings Management Functions
+    function renderSettingsLists() {
+      document.getElementById("settings-chip-list").innerHTML = shortcuts.map((s, index) => `
+        <div class="tag-item">
+          <span>${s.label} (₹${s.amount})</span>
+          <button onclick="deleteShortcut(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+        </div>
+      `).join('');
+
+      document.getElementById("settings-cat-list").innerHTML = categories.map((c, index) => `
+        <div class="tag-item">
+          <span>${c.icon} ${c.label}</span>
+          <button onclick="deleteCategory(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+        </div>
+      `).join('');
+
+      document.getElementById("settings-member-list").innerHTML = members.map((m, index) => `
+        <div class="tag-item">
+          <span>👤 ${m}</span>
+          <button onclick="deleteMember(${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+        </div>
+      `).join('');
+
+      const subCatParent = document.getElementById("subcat-parent-select");
+      subCatParent.innerHTML = categories.map(c => `<option value="${c.id}">${c.icon} ${c.label}</option>`).join('');
+      renderSettingsSubCatList();
+    }
+
+    function renderSettingsSubCatList() {
+      const parentId = document.getElementById("subcat-parent-select").value;
+      const catObj = categories.find(c => c.id === parentId);
+      const listContainer = document.getElementById("settings-subcat-list");
+
+      if (catObj && catObj.subcats && catObj.subcats.length > 0) {
+        listContainer.innerHTML = catObj.subcats.map((sub, index) => `
+          <div class="tag-item">
+            <span>📂 ${sub}</span>
+            <button onclick="deleteSubCategory('${catObj.id}', ${index})" style="background:none; border:none; cursor:pointer;">🗑️</button>
+          </div>
+        `).join('');
+      } else {
+        listContainer.innerHTML = `<p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">No sub-categories yet.</p>`;
+      }
+    }
+
+    function addSubCategory() {
+      const parentId = document.getElementById("subcat-parent-select").value;
+      const name = document.getElementById("new-subcat-name").value;
+      if (!name) return alert("Enter sub-category name!");
+
+      const catObj = categories.find(c => c.id === parentId);
+      if (catObj) {
+        if (!catObj.subcats) catObj.subcats = [];
+        catObj.subcats.push(name);
+        localStorage.setItem("piggy_categories", JSON.stringify(categories));
+        renderSubCategories();
+        renderSettingsSubCatList();
+        document.getElementById("new-subcat-name").value = "";
+      }
+    }
+
+    function deleteSubCategory(parentId, subIndex) {
+      const catObj = categories.find(c => c.id === parentId);
+      if (catObj && catObj.subcats) {
+        catObj.subcats.splice(subIndex, 1);
+        localStorage.setItem("piggy_categories", JSON.stringify(categories));
+        renderSubCategories();
+        renderSettingsSubCatList();
+      }
+    }
+
+    function addQuickShortcut() {
+      const label = document.getElementById("new-chip-label").value;
+      const amount = parseFloat(document.getElementById("new-chip-amount").value);
+      if (!label || !amount) return alert("Enter label and amount!");
+      
+      shortcuts.push({ label: label, amount: amount, category: "Other", subcat: "", note: label });
+      localStorage.setItem("piggy_shortcuts", JSON.stringify(shortcuts));
+      renderShortcuts();
+      renderSettingsLists();
+      document.getElementById("new-chip-label").value = "";
+      document.getElementById("new-chip-amount").value = "";
+    }
+
+    function deleteShortcut(index) {
+      shortcuts.splice(index, 1);
+      localStorage.setItem("piggy_shortcuts", JSON.stringify(shortcuts));
+      renderShortcuts();
+      renderSettingsLists();
+    }
+
+    function addCustomCategory() {
+      const icon = document.getElementById("new-cat-icon").value || "🏷️";
+      const name = document.getElementById("new-cat-name").value;
+      if (!name) return alert("Enter category name!");
+      categories.push({ id: name, label: name, icon: icon, subcats: ["General"], keywords: [name.toLowerCase()] });
+      localStorage.setItem("piggy_categories", JSON.stringify(categories));
+      renderCategoryGrid();
+      renderSettingsLists();
+      populateAnalyticsFilterDropdowns();
+      document.getElementById("new-cat-name").value = "";
+      document.getElementById("new-cat-icon").value = "";
+    }
+
+    function deleteCategory(index) {
+      if (confirm(`Delete category "${categories[index].label}"?`)) {
+        categories.splice(index, 1);
+        localStorage.setItem("piggy_categories", JSON.stringify(categories));
+        if (categories.length > 0) selectedCat = categories[0].id;
+        renderCategoryGrid();
+        renderSettingsLists();
+        populateAnalyticsFilterDropdowns();
+      }
+    }
+
+    function addFamilyMember() {
+      const name = document.getElementById("new-member-name").value;
+      if (!name) return alert("Enter member name!");
+      members.push(name);
+      localStorage.setItem("piggy_members", JSON.stringify(members));
+      renderMembersSelect();
+      renderSettingsLists();
+      populateAnalyticsFilterDropdowns();
+      document.getElementById("new-member-name").value = "";
+    }
+
+    function deleteMember(index) {
+      if (confirm(`Remove member "${members[index]}"?`)) {
+        members.splice(index, 1);
+        localStorage.setItem("piggy_members", JSON.stringify(members));
+        renderMembersSelect();
+        renderSettingsLists();
+        populateAnalyticsFilterDropdowns();
+      }
     }
 
     function switchTab(tab, btn) {
@@ -410,6 +712,8 @@
       document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
       document.getElementById(`view-${tab}`).classList.add("active");
       btn.classList.add("active");
+      if (tab === 'analytics') renderAnalytics();
+      if (tab === 'settings') renderSettingsLists();
     }
   </script>
 </body>
