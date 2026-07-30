@@ -107,7 +107,7 @@
     </div>
 
     <div class="amount-card">
-      <div class="section-label">Enter Amount</div>
+      <div class="section-label">Enter Amount (Type or Tap)</div>
       <button class="mic-btn" id="mic-btn" onclick="startVoiceInput()" title="Speak in Hindi/English">🎙️</button>
       <div class="amount-display">₹<span id="amount-val">0</span></div>
     </div>
@@ -148,7 +148,7 @@
       <select id="entry-user"></select>
     </div>
 
-    <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense 🪙</button>
+    <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense 🪙 (Press Enter)</button>
 
   </main>
 
@@ -210,7 +210,6 @@
       <div id="settings-cat-list"></div>
     </div>
 
-    <!-- Manage Sub-Categories Manager -->
     <div class="card-block">
       <div class="section-label">Manage Sub-Categories</div>
       <p style="font-size:0.8rem; color:var(--text-muted); margin-bottom:8px;">Select main category to add/remove sub-categories:</p>
@@ -260,7 +259,6 @@
   </nav>
 
   <script>
-    // PRE-LOADED FIREBASE CONFIG FROM YOUR SCREENSHOT
     const firebaseConfig = {
       apiKey: "AIzaSyAmJK-30AB63Stx0ejdEbCGfab0jYrj-8Y",
       authDomain: "my-expenses-da02f.firebaseapp.com",
@@ -271,7 +269,6 @@
       appId: "1:640329330500:web:374c7d0e152fb0e2es5901"
     };
 
-    // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
     firebase.auth().signInAnonymously().catch((err) => console.error("Auth error:", err));
     const db = firebase.database();
@@ -315,12 +312,23 @@
       renderSettingsLists();
       updateBudgetBar();
 
-      // Keyboard listener
+      // Keyboard Listener (Pressing Enter Saves Expense)
       document.addEventListener("keydown", (e) => {
+        // If user presses Enter anywhere on Add screen (or inside input fields)
+        if (e.key === 'Enter') {
+          // If actively typing inside Settings view, don't trigger expense save
+          const activeView = document.querySelector('.view.active').id;
+          if (activeView === 'view-entry') {
+            e.preventDefault();
+            saveExpense();
+            return;
+          }
+        }
+
+        // On-screen keypad keyboard bindings
         if (document.activeElement.tagName === 'INPUT') return;
         if ((e.key >= '0' && e.key <= '9') || e.key === '.') pressKey(e.key);
         if (e.key === 'Backspace') pressKey('DEL');
-        if (e.key === 'Enter') saveExpense();
       });
 
       // Realtime Cloud Listener
@@ -393,7 +401,7 @@
       if (editingId) {
         expensesRef.child(editingId).update(payload);
         editingId = null;
-        document.getElementById("save-btn").innerText = "Save Expense 🪙";
+        document.getElementById("save-btn").innerText = "Save Expense 🪙 (Press Enter)";
       } else {
         expensesRef.push(payload);
       }
@@ -571,7 +579,6 @@
       }
     }
 
-    // Settings Management Functions
     function renderSettingsLists() {
       document.getElementById("settings-chip-list").innerHTML = shortcuts.map((s, index) => `
         <div class="tag-item">
