@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Piggy Jar — Family Live Sync</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Firebase & Chart.js CDNs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --bg: #FFF7F2;
+      --card: #FFFFFF;
+      --text: #2D232E;
+      --text-muted: #8A7A8C;
+      --primary: #FF5A79;
+      --border: #FFE3D6;
+      --radius: 20px;
+      --shadow: 0 10px 25px -5px rgba(255, 90, 121, 0.12);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', sans-serif; -webkit-tap-highlight-color: transparent; }
+    body { background-color: var(--bg); color: var(--text); padding-bottom: 90px; max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; }
+    
+    header { padding: 20px 20px 10px; display: flex; justify-content: space-between; align-items: center; }
+    .app-title { font-size: 1.5rem; font-weight: 800; color: var(--primary); display: flex; align-items: center; gap: 8px; }
+    .sync-badge { font-size: 0.75rem; font-weight: 800; padding: 4px 10px; border-radius: 12px; background: #DEF7EC; color: #03543F; display: flex; align-items: center; gap: 4px; }
+
+    .bottom-nav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%); width: 100%; max-width: 480px; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); display: flex; justify-content: space-around; padding: 12px 0; border-top: 2px solid var(--border); z-index: 100; }
+    .nav-btn { background: none; border: none; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; width: 33%; }
+    .nav-btn.active { color: var(--primary); }
+
+    .view { display: none; padding: 15px 20px; }
+    .view.active { display: block; }
+
+    .amount-card { background: var(--card); border-radius: var(--radius); padding: 15px; text-align: center; box-shadow: var(--shadow); border: 2px solid var(--border); margin-bottom: 15px; position: relative; }
+    .amount-display { font-size: 2.5rem; font-weight: 800; color: var(--primary); margin: 5px 0; display: flex; align-items: center; justify-content: center; }
+    
+    .mic-btn { position: absolute; right: 15px; top: 15px; background: #EEF2FF; border: 2px solid #C7D2FE; border-radius: 50%; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; transition: all 0.2s; }
+    .mic-btn.listening { background: #EF4444; color: white; border-color: #B91C1C; animation: pulse 1s infinite; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); } 100% { transform: scale(1); } }
+
+    .budget-bar-bg { background: #FFE3D6; border-radius: 10px; height: 10px; width: 100%; overflow: hidden; margin-top: 8px; }
+    .budget-bar-fill { background: #10B981; height: 100%; width: 0%; transition: width 0.3s, background-color 0.3s; }
+
+    .chips-wrapper { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; margin-bottom: 15px; scrollbar-width: none; }
+    .chip-btn { background: var(--card); border: 2px solid var(--border); border-radius: 12px; padding: 8px 12px; font-size: 0.8rem; font-weight: 700; white-space: nowrap; cursor: pointer; }
+
+    .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .key-btn { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 12px; font-size: 1.2rem; font-weight: 700; color: var(--text); cursor: pointer; }
+    .key-btn:active { background: var(--border); }
+
+    .section-label { font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; }
+    .cat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 15px; }
+    .cat-btn { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 10px 4px; text-align: center; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .cat-btn.selected { border-color: var(--primary); background: #FFF0F3; box-shadow: 0 4px 12px rgba(255, 90, 121, 0.15); }
+
+    .input-group { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 12px 14px; margin-bottom: 12px; display: flex; align-items: center; gap: 10px; position: relative; cursor: pointer; }
+    .input-group input, .input-group select { border: none; outline: none; width: 100%; font-size: 0.95rem; font-weight: 600; background: transparent; color: var(--text); cursor: pointer; }
+
+    .filter-tabs { display: flex; gap: 6px; margin-bottom: 12px; background: var(--card); padding: 6px; border-radius: 14px; border: 2px solid var(--border); }
+    .filter-btn { flex: 1; border: none; background: transparent; padding: 8px 4px; border-radius: 10px; font-weight: 700; font-size: 0.75rem; color: var(--text-muted); cursor: pointer; }
+    .filter-btn.active { background: var(--primary); color: white; }
+
+    .custom-date-box { display: none; gap: 8px; margin-bottom: 12px; }
+    .custom-date-box.active { display: flex; }
+
+    .save-btn { width: 100%; background: var(--primary); color: white; border: none; border-radius: 18px; padding: 16px; font-size: 1.1rem; font-weight: 800; cursor: pointer; }
+
+    .tx-item { background: var(--card); border: 2px solid var(--border); border-radius: 16px; padding: 12px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; }
+    .action-btn { background: none; border: none; cursor: pointer; font-size: 1.1rem; }
+
+    .card-block { background: var(--card); border-radius: var(--radius); padding: 15px; border: 2px solid var(--border); margin-bottom: 15px; }
+    .tag-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg); border-radius: 12px; margin-top: 6px; font-weight: 700; font-size: 0.9rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="app-title"><span>🐷</span> Piggy Jar</div>
+    <div class="sync-badge" id="sync-status">🟢 Live Sync</div>
+  </header>
+
+  <!-- ENTRY VIEW -->
+  <main id="view-entry" class="view active">
+    
+    <div class="input-group" onclick="triggerDatePicker()">
+      <span style="font-size:1.1rem">📅</span>
+      <input type="date" id="entry-date">
+    </div>
+
+    <div class="amount-card">
+      <div style="display:flex; justify-content:space-between; font-size:0.8rem; font-weight:700; color:var(--text-muted);">
+        <span>Monthly Family Budget</span>
+        <span id="budget-text">₹0 / ₹0</span>
+      </div>
+      <div class="budget-bar-bg">
+        <div class="budget-bar-fill" id="budget-fill"></div>
+      </div>
+    </div>
+
+    <div class="amount-card">
+      <div class="section-label">Enter Amount</div>
+      <button class="mic-btn" id="mic-btn" onclick="startVoiceInput()" title="Speak in Hindi/English">🎙️</button>
+      <div class="amount-display">₹<span id="amount-val">0</span></div>
+    </div>
+
+    <div class="section-label">Quick Log Shortcuts</div>
+    <div class="chips-wrapper" id="chips-container"></div>
+
+    <div class="keypad">
+      <button class="key-btn" onclick="pressKey('1')">1</button>
+      <button class="key-btn" onclick="pressKey('2')">2</button>
+      <button class="key-btn" onclick="pressKey('3')">3</button>
+      <button class="key-btn" onclick="pressKey('4')">4</button>
+      <button class="key-btn" onclick="pressKey('5')">5</button>
+      <button class="key-btn" onclick="pressKey('6')">6</button>
+      <button class="key-btn" onclick="pressKey('7')">7</button>
+      <button class="key-btn" onclick="pressKey('8')">8</button>
+      <button class="key-btn" onclick="pressKey('9')">9</button>
+      <button class="key-btn" onclick="pressKey('.')">.</button>
+      <button class="key-btn" onclick="pressKey('0')">0</button>
+      <button class="key-btn" onclick="pressKey('DEL')">⌫</button>
+    </div>
+
+    <div class="section-label">Main Category</div>
+    <div class="cat-grid" id="category-grid"></div>
+
+    <div class="input-group">
+      <span style="font-size:1.1rem">📂</span>
+      <select id="entry-subcat"><option value="">Select Sub-Category (Optional)</option></select>
+    </div>
+
+    <div class="input-group">
+      <span style="font-size:1.1rem">📝</span>
+      <input type="text" id="entry-note" placeholder="Note (e.g. coffee, carpool)..." oninput="handleAutoMatch(this.value)">
+    </div>
+
+    <div class="input-group">
+      <span style="font-size:1.1rem">👤 Logged By</span>
+      <select id="entry-user"></select>
+    </div>
+
+    <button class="save-btn" id="save-btn" onclick="saveExpense()">Save Expense 🪙</button>
+
+  </main>
+
+  <!-- ANALYTICS VIEW -->
+  <main id="view-analytics" class="view">
+    <div class="filter-tabs">
+      <button class="filter-btn active" onclick="setAnalyticsPeriod('day', this)">Day</button>
+      <button class="filter-btn" onclick="setAnalyticsPeriod('week', this)">Week</button>
+      <button class="filter-btn" onclick="setAnalyticsPeriod('month', this)">Month</button>
+      <button class="filter-btn" onclick="setAnalyticsPeriod('year', this)">Year</button>
+      <button class="filter-btn" onclick="setAnalyticsPeriod('custom', this)">Custom</button>
+    </div>
+
+    <div class="custom-date-box" id="custom-date-box">
+      <div class="input-group" style="flex:1; margin:0;"><span style="font-size:0.8rem; font-weight:700;">From:</span><input type="date" id="filter-from-date" onchange="renderAnalytics()"></div>
+      <div class="input-group" style="flex:1; margin:0;"><span style="font-size:0.8rem; font-weight:700;">To:</span><input type="date" id="filter-to-date" onchange="renderAnalytics()"></div>
+    </div>
+
+    <div style="display:flex; gap:8px; margin-bottom:15px;">
+      <div class="input-group" style="flex:1; margin:0;"><span>🏷️</span><select id="filter-category" onchange="renderAnalytics()"><option value="ALL">All Categories</option></select></div>
+      <div class="input-group" style="flex:1; margin:0;"><span>👤</span><select id="filter-user" onchange="renderAnalytics()"><option value="ALL">All Persons</option></select></div>
+    </div>
+
+    <div class="card-block">
+      <div class="section-label">Total Spent</div>
+      <h2 id="period-total" style="color:var(--primary)">₹0</h2>
+      <canvas id="donutChart" style="margin-top:15px; max-height:220px;"></canvas>
+    </div>
+
+    <button onclick="shareWhatsApp()" style="width:100%; background:#25D366; color:white; border:none; padding:12px; border-radius:14px; font-weight:800; cursor:pointer; margin-bottom:15px;">
+      📲 Export & Share Summary on WhatsApp
+    </button>
+
+    <div class="section-label">Expenses History</div>
+    <div id="history-list"></div>
+  </main>
+
+  <!-- SETTINGS VIEW -->
+  <main id="view-settings" class="view">
+    <div class="card-block">
+      <div class="section-label">Manage Quick Shortcuts</div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px; margin-bottom:12px;">
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="new-chip-label" placeholder="Label (e.g. 🚗 Carpool)" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
+          <input type="number" id="new-chip-amount" placeholder="Amount" style="width:90px; padding:8px; border:2px solid var(--border); border-radius:10px;">
+        </div>
+        <button onclick="addQuickShortcut()" style="background:var(--primary); color:white; border:none; padding:8px; border-radius:10px; font-weight:700;">Add Shortcut</button>
+      </div>
+      <div id="settings-chip-list"></div>
+    </div>
+
+    <div class="card-block">
+      <div class="section-label">Manage Main Categories</div>
+      <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px;">
+        <input type="text" id="new-cat-icon" placeholder="Emoji" style="width:60px; padding:8px; border:2px solid var(--border); border-radius:10px; text-align:center;">
+        <input type="text" id="new-cat-name" placeholder="Category Name" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
+        <button onclick="addCustomCategory()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+      </div>
+      <div id="settings-cat-list"></div>
+    </div>
+
+    <div class="card-block">
+      <div class="section-label">Manage Family Members</div>
+      <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px;">
+        <input type="text" id="new-member-name" placeholder="Name" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
+        <button onclick="addFamilyMember()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Add</button>
+      </div>
+      <div id="settings-member-list"></div>
+    </div>
+
+    <div class="card-block">
+      <div class="section-label">Monthly Target Budget (₹)</div>
+      <div style="display:flex; gap:8px; margin-top:8px;">
+        <input type="number" id="monthly-budget-input" placeholder="e.g. 30000" style="flex:1; padding:8px; border:2px solid var(--border); border-radius:10px;">
+        <button onclick="saveMonthlyBudget()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-weight:700;">Save</button>
+      </div>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" onclick="switchTab('entry', this)">Add</button>
+    <button class="nav-btn" onclick="switchTab('analytics', this)">Analytics</button>
+    <button class="nav-btn" onclick="switchTab('settings', this)">Settings</button>
+  </nav>
+
+  <script>
+    // PRE-LOADED FIREBASE CONFIG FROM YOUR SCREENSHOT
+    const firebaseConfig = {
+      apiKey: "AIzaSyAmJK-30AB63Stx0ejdEbCGfab0jYrj-8Y",
+      authDomain: "my-expenses-da02f.firebaseapp.com",
+      databaseURL: "https://my-expenses-da02f-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "my-expenses-da02f",
+      storageBucket: "my-expenses-da02f.firebasestorage.app",
+      messagingSenderId: "640329330500",
+      appId: "1:640329330500:web:374c7d0e152fb0e2es5901"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const expensesRef = db.ref("expenses");
+
+    let amountStr = "0";
+    let selectedCat = "";
+    let editingId = null;
+    let currentPeriod = 'day';
+    let chartInstance = null;
+
+    let expenses = [];
+    let members = JSON.parse(localStorage.getItem("piggy_members") || '["Self", "Mom", "Dad", "Kid"]');
+    let monthlyBudget = parseFloat(localStorage.getItem("piggy_budget") || "30000");
+
+    let shortcuts = JSON.parse(localStorage.getItem("piggy_shortcuts") || JSON.stringify([
+      { label: "🚗 Carpool Alwar", amount: 380, category: "Travel", subcat: "Carpool", note: "Alwar Travel" },
+      { label: "🥛 Milk", amount: 50, category: "Food", subcat: "Groceries", note: "Daily Milk" }
+    ]));
+
+    let categories = JSON.parse(localStorage.getItem("piggy_categories") || JSON.stringify([
+      { id: "Food", label: "Food", icon: "🍔", subcats: ["Groceries", "Restaurant", "Snacks", "Milk"], keywords: ["lunch", "dinner", "pizza", "milk", "tea", "food"] },
+      { id: "Travel", label: "Travel", icon: "🚗", subcats: ["Carpool", "Petrol", "Cab", "Auto", "Train"], keywords: ["cab", "uber", "petrol", "auto", "train", "carpool", "alwar", "travel"] },
+      { id: "Shopping", label: "Shopping", icon: "🛍️", subcats: ["Clothes", "Household"], keywords: ["clothes", "shoes", "amazon"] },
+      { id: "Bills", label: "Bills", icon: "🏠", subcats: ["Rent", "Electricity", "Wifi"], keywords: ["wifi", "recharge", "rent", "electricity"] }
+    ]));
+
+    document.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("entry-date").valueAsDate = new Date();
+      if (categories.length > 0) selectedCat = categories[0].id;
+
+      renderCategoryGrid();
+      renderShortcuts();
+      renderMembersSelect();
+      renderSettingsLists();
+
+      // Realtime Cloud listener
+      expensesRef.on("value", (snapshot) => {
+        const data = snapshot.val();
+        expenses = [];
+        if (data) {
+          for (let id in data) {
+            expenses.unshift({ firebaseKey: id, ...data[id] });
+          }
+        }
+        updateBudgetBar();
+        populateAnalyticsFilterDropdowns();
+        renderAnalytics();
+      });
+    });
+
+    function saveExpense() {
+      const val = parseFloat(amountStr);
+      if (!val || val <= 0) return alert("Enter a valid amount!");
+
+      const payload = {
+        amount: val,
+        category: selectedCat,
+        subcat: document.getElementById("entry-subcat").value,
+        note: document.getElementById("entry-note").value,
+        user: document.getElementById("entry-user").value,
+        date: document.getElementById("entry-date").value,
+        timestamp: Date.now()
+      };
+
+      if (editingId) {
+        expensesRef.child(editingId).update(payload);
+        editingId = null;
+        document.getElementById("save-btn").innerText = "Save Expense 🪙";
+      } else {
+        expensesRef.push(payload);
+      }
+
+      amountStr = "0";
+      document.getElementById("amount-val").innerText = "0";
+      document.getElementById("entry-note").value = "";
+      alert("Synced to Cloud!");
+    }
+
+    function deleteExpense(firebaseKey) {
+      if (confirm("Delete this expense for all family members?")) {
+        expensesRef.child(firebaseKey).remove();
+      }
+    }
+
+    function pressKey(k) {
+      if (k === 'DEL') amountStr = amountStr.length > 1 ? amountStr.slice(0, -1) : "0";
+      else if (k === '.') { if (!amountStr.includes('.')) amountStr += '.'; }
+      else amountStr = amountStr === "0" ? k : amountStr + k;
+      document.getElementById("amount-val").innerText = amountStr;
+    }
+
+    function renderCategoryGrid() {
+      document.getElementById("category-grid").innerHTML = categories.map(c => `
+        <div class="cat-btn ${c.id === selectedCat ? 'selected' : ''}" onclick="selectCategory('${c.id}')">
+          <span style="font-size:1.5rem">${c.icon}</span>
+          <span style="font-size:0.75rem; font-weight:700">${c.label}</span>
+        </div>
+      `).join('');
+    }
+
+    function selectCategory(id) { selectedCat = id; renderCategoryGrid(); renderSubCategories(); }
+
+    function renderSubCategories() {
+      const c = categories.find(cat => cat.id === selectedCat);
+      document.getElementById("entry-subcat").innerHTML = (c && c.subcats) ? 
+        `<option value="">Select Sub-Category</option>` + c.subcats.map(s => `<option value="${s}">${s}</option>`).join('') : `<option value="">General</option>`;
+    }
+
+    function renderMembersSelect() { document.getElementById("entry-user").innerHTML = members.map(m => `<option value="${m}">${m}</option>`).join(''); }
+    function renderShortcuts() { document.getElementById("chips-container").innerHTML = shortcuts.map(s => `<button class="chip-btn" onclick="quickLog(${s.amount}, '${s.category}', '${s.subcat||''}', '${s.note||''}')">${s.label} (₹${s.amount})</button>`).join(''); }
+    
+    function quickLog(amt, cat, sub, note) {
+      amountStr = amt.toString();
+      document.getElementById("amount-val").innerText = amountStr;
+      document.getElementById("entry-note").value = note;
+      selectCategory(cat);
+    }
+
+    function updateBudgetBar() {
+      const now = new Date();
+      const spent = expenses.filter(e => new Date(e.date).getMonth() === now.getMonth()).reduce((s, e) => s + e.amount, 0);
+      const pct = Math.min(100, Math.round((spent / monthlyBudget) * 100)) || 0;
+      document.getElementById("budget-fill").style.width = `${pct}%`;
+      document.getElementById("budget-text").innerText = `₹${spent.toLocaleString('en-IN')} / ₹${monthlyBudget.toLocaleString('en-IN')} (${pct}%)`;
+    }
+
+    function setAnalyticsPeriod(p, btn) {
+      currentPeriod = p;
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAnalytics();
+    }
+
+    function renderAnalytics() {
+      const now = new Date();
+      const filtered = expenses.filter(e => {
+        const d = new Date(e.date);
+        if (currentPeriod === 'day') return d.toDateString() === now.toDateString();
+        if (currentPeriod === 'month') return d.getMonth() === now.getMonth();
+        return true;
+      });
+
+      const total = filtered.reduce((sum, e) => sum + e.amount, 0);
+      document.getElementById("period-total").innerText = `₹${total.toLocaleString('en-IN')}`;
+
+      document.getElementById("history-list").innerHTML = filtered.map(e => `
+        <div class="tx-item">
+          <div>
+            <div style="font-weight:700">${e.category} ${e.subcat ? '['+e.subcat+']' : ''} • ${e.note||''}</div>
+            <div style="font-size:0.75rem; color:var(--text-muted);">${e.date} (${e.user})</div>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px;">
+            <div style="font-weight:800; color:var(--primary)">₹${e.amount}</div>
+            <button class="action-btn" onclick="deleteExpense('${e.firebaseKey}')">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function switchTab(tab, btn) {
+      document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
+      document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+      document.getElementById(`view-${tab}`).classList.add("active");
+      btn.classList.add("active");
+    }
+  </script>
+</body>
+</html>
